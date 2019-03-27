@@ -59,6 +59,8 @@ int main() {
     bool left = false;
     bool right = false;
     bool alarm = false;
+    bool intersect = false;
+    bool lastturn = false;
     while(true){
         if (bp.get_sensor(PORT_1, color) == 0 && bp.get_sensor(PORT_3, light) == 0){
             leftval = measure_light(light.reflected, left_min, left_max);
@@ -86,7 +88,28 @@ int main() {
                 zerocount = 0;
             }
 
-            if (alarm) {
+            if (leftval >= 57 && rightval >= 57) {
+                intersect = true;
+            }
+
+            if (intersect) {
+                cout << "intersect" << endl;
+
+                bp.set_motor_power(PORT_A, 20);
+                bp.set_motor_power(PORT_B, 20);
+                sleep(1);
+                if (lastturn) {
+                    bp.set_motor_power(PORT_A, -40);
+                    bp.set_motor_power(PORT_B, 40);
+                    lastturn = false;
+                }else{
+                    bp.set_motor_power(PORT_A, 40);
+                    bp.set_motor_power(PORT_B, -40);
+                    lastturn = true;
+                }
+                sleep(1);
+                intersect = false;
+            }else if(alarm) {
                 if (left) {
                     apower = 40;
                     bpower = -40;
