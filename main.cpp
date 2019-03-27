@@ -40,10 +40,6 @@ int main() {
     bp.set_sensor_type(PORT_3, SENSOR_TYPE_NXT_LIGHT_ON);
     bp.set_sensor_type(PORT_2, SENSOR_TYPE_NXT_ULTRASONIC);
 
-//    uint16_t left_min = 1670;
-//    uint16_t left_max = 2540;
-//    uint16_t right_min = 270;
-//    uint16_t right_max = 630;
     uint16_t left_min = 1670;
     uint16_t left_max = 2540;
     uint16_t right_min = 270;
@@ -57,25 +53,53 @@ int main() {
 
     int zerocount = 0;
 
+    int8_t apower;
+    int8_t bpower;
+
+    bool left = false;
+    bool right = false;
+    bool alarm = false;
     while(true){
         if (bp.get_sensor(PORT_1, color) == 0 && bp.get_sensor(PORT_3, light) == 0){
             leftval = measure_light(light.reflected, left_min, left_max);
             rightval = measure_color(color.reflected_red, right_min, right_max);
 
-            if (leftval == 0 && rightval == 0) {
+            if (leftval - rightval > 10){
+                left = true;
+                right = false;
+                alarm = false;
+            }else if (leftval - rightval < -10){
+                right = true;
+                left = false;
+                alarm = false;
+            }
+
+            if (leftval <= 0 && rightval <= 0) {
                 zerocount++;
 
                 if (zerocount >= 10) {
+                    alarm = true;
                     cout << "ALARM" << endl;
-                    bp.reset_all();
-                    exit(-2);
+                    cout << right << ", " << left << endl;
                 }
             }else{
                 zerocount = 0;
             }
 
-            uint16_t apower = power - (rightval);
-            uint16_t bpower = power - (leftval);
+            if (alarm) {
+                if (left) {
+                    apower = 40;
+                    bpower = -40;
+                }
+
+                if (right) {
+                    apower = -40;
+                    bpower = 40;
+                }
+            }else{
+                apower = power - (rightval);
+                bpower = power - (leftval);
+            }
 
             bp.set_motor_power(PORT_A, apower);
             bp.set_motor_power(PORT_B, bpower);
@@ -83,34 +107,10 @@ int main() {
 //            cout << "Color:" << setw(4) << color.reflected_red << endl;
 //            cout << "Infrared:" << setw(4) << light.reflected << endl;
             cout << leftval << ", " << rightval << endl;
-            cout << "power: " << apower << ", " << bpower << endl;
+            cout << "power: " << static_cast<int16_t>(apower) << ", " << static_cast<int16_t>(bpower) << endl;
         }
-
-
-//        if (bp.get_sensor(PORT_1, color) == 0) {
-//            cout << "Color sensor (S1): detected  " << (int) color.color;
-//            cout << " red" << setw(4) << color.reflected_red;
-//        }
-//
-//        if (bp.get_sensor(PORT_3, light) == 0) {
-//            cout << "Light sensor (S3): reflected " << setw(4) << light.reflected << endl;
-//        }
-//
-//        int state = bp.get_sensor(PORT_2, ultrasonic);
-//        if (state == 0) {
-//            cout << "Ultrasonic sensor (S2): "   << ultrasonic.cm << "cm" << endl;
-//        }
-
         sleep(0.1);
     }
-
-//    bp.set_motor_power(PORT_A, 20);
-//    bp.set_motor_power(PORT_B, 20);
-//    sleep(3);
-//    bp.set_motor_power(PORT_A, 0);
-//    bp.set_motor_power(PORT_B, 0);
-
-    bp.reset_all();
 }
 
 void exit_signal_handler(int signo){
