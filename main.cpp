@@ -2,6 +2,7 @@
 #include <unistd.h>
 #include <iomanip>
 #include <signal.h>
+#include <cstdlib>
 #include "BrickPi3.h"
 
 using namespace std;
@@ -40,16 +41,13 @@ int main() {
     bp.set_sensor_type(PORT_3, SENSOR_TYPE_NXT_LIGHT_ON);
     bp.set_sensor_type(PORT_2, SENSOR_TYPE_NXT_ULTRASONIC);
 
-    uint16_t left_min = 1670;
-    uint16_t left_max = 2540;
-    uint16_t right_min = 270;
-    uint16_t right_max = 630;
+    uint16_t left_min = 1710;
+    uint16_t left_max = 2600;
+    uint16_t right_min = 230;
+    uint16_t right_max = 627;
 
     int16_t leftval;
     int16_t rightval;
-
-    bp.set_motor_power(PORT_A, 0);
-    bp.set_motor_power(PORT_B, 0);
 
     int zerocount = 0;
 
@@ -64,9 +62,7 @@ int main() {
     while(true){
         if(bp.get_sensor(PORT_2, ultrasonic) == 0){
             int distanceCm = ultrasonic.cm;
-            cout << "Ultrasonic sensor (S2): " << distanceCm << "cm" << endl;
-            bp.set_motor_power(PORT_A, 40);
-            bp.set_motor_power(PORT_B, 40);
+//            cout << "Ultrasonic sensor (S2): " << distanceCm << "cm" << endl;
             if(distanceCm <= 5){
                 bp.set_motor_power(PORT_A, 55);
                 bp.set_motor_power(PORT_B, -55);
@@ -125,12 +121,12 @@ int main() {
             }
 
             if (intersect) {
-                cout << "intersect" << endl;
+                cout << "intersect" << lastturn << endl;
 
                 bp.set_motor_power(PORT_A, 20);
                 bp.set_motor_power(PORT_B, 20);
                 sleep(1);
-                if (lastturn) {
+                if (rand() % 2) {
                     bp.set_motor_power(PORT_A, -40);
                     bp.set_motor_power(PORT_B, 40);
                     lastturn = false;
@@ -139,7 +135,7 @@ int main() {
                     bp.set_motor_power(PORT_B, -40);
                     lastturn = true;
                 }
-                sleep(1);
+                usleep(1000000);
                 intersect = false;
             }else if(alarm) {
                 if (left) {
@@ -164,7 +160,7 @@ int main() {
             cout << leftval << ", " << rightval << endl;
             cout << "power: " << static_cast<int16_t>(apower) << ", " << static_cast<int16_t>(bpower) << endl;
         }
-        sleep(0.1);
+//        sleep(0);
     }
 }
 
