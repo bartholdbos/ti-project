@@ -62,6 +62,38 @@ int main() {
     bool intersect = false;
     bool lastturn = false;
     while(true){
+        if(bp.get_sensor(PORT_2, ultrasonic) == 0){
+            int distanceCm = ultrasonic.cm;
+            cout << "Ultrasonic sensor (S2): " << distanceCm << "cm" << endl;
+            bp.set_motor_power(PORT_A, 40);
+            bp.set_motor_power(PORT_B, 40);
+            if(distanceCm <= 5){
+                bp.set_motor_power(PORT_A, 55);
+                bp.set_motor_power(PORT_B, -55);
+                sleep(1);
+                bp.set_motor_power(PORT_A, 50);
+                bp.set_motor_power(PORT_B, 50);
+                sleep(1);
+                bp.set_motor_power(PORT_A, -55);
+                bp.set_motor_power(PORT_B, 55);
+                sleep(1);
+                bp.set_motor_power(PORT_A, 50);
+                bp.set_motor_power(PORT_B, 50);
+                usleep(2500000);
+                bp.set_motor_power(PORT_A, -55);
+                bp.set_motor_power(PORT_B, 55);
+                sleep(1);
+                bp.set_motor_power(PORT_A, 50);
+                bp.set_motor_power(PORT_B, 50);
+                sleep(1);
+                bp.set_motor_power(PORT_A, 50);
+                bp.set_motor_power(PORT_B, -50);
+                sleep(1);
+                bp.set_motor_power(PORT_A, 0);
+                bp.set_motor_power(PORT_B, 0);
+            }
+        }
+
         if (bp.get_sensor(PORT_1, color) == 0 && bp.get_sensor(PORT_3, light) == 0){
             leftval = measure_light(light.reflected, left_min, left_max);
             rightval = measure_color(color.reflected_red, right_min, right_max);
