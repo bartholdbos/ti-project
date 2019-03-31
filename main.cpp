@@ -7,22 +7,25 @@
 
 using namespace std;
 
-BrickPi3 bp;
+BrickPi3 bp; //check if the brickpi is connected
 
+//specify what sensors are connected
 sensor_color_t color;
 sensor_light_t light;
 sensor_ultrasonic_t ultrasonic;
 
-int power = 60;
+int power = 60; //speed variable
 
-void exit_signal_handler(int signo);
+void exit_signal_handler(int signo); //exit handling
 
+//calculate light brightness
 int16_t measure_light(int16_t val, uint16_t MIN, uint16_t MAX) {
     if (val < MIN) val = MIN;
     if (val > MAX) val = MAX;
     return (power*(val - MIN))/(MAX - MIN);
 }
 
+//calculate color brightness
 int16_t measure_color(int16_t val, uint16_t MIN, uint16_t MAX) {
     if (val < MIN) val = MIN;
     if (val > MAX) val = MAX;
@@ -32,34 +35,42 @@ int16_t measure_color(int16_t val, uint16_t MIN, uint16_t MAX) {
 int main() {
     signal(SIGINT, exit_signal_handler);
 
-    bp.detect(true);
+    bp.detect(true); //check if brickpi is conected
 
+    //set motor limits
     bp.set_motor_limits(PORT_A, 60, 0);
     bp.set_motor_limits(PORT_B, 60, 0);
 
+    //specify whitch sensor is coneccted to witch port
     bp.set_sensor_type(PORT_1, SENSOR_TYPE_NXT_COLOR_FULL);
     bp.set_sensor_type(PORT_3, SENSOR_TYPE_NXT_LIGHT_ON);
     bp.set_sensor_type(PORT_2, SENSOR_TYPE_NXT_ULTRASONIC);
 
+    //sensor values
     uint16_t left_min = 0;
     uint16_t left_max = 0;
     uint16_t right_min = 0;
     uint16_t right_max = 0;
 
+    //light values
     int16_t leftval;
     int16_t rightval;
 
-    int zerocount = 0;
+    int zerocount = 0; //to check how long the robot lost the line
 
+    //motor values
     int8_t apower;
     int8_t bpower;
 
+    //to check witch way to turn when the line is lost
     bool left = false;
     bool right = false;
-    bool alarm = false;
-    bool intersect = false;
-    bool lastturn = false;
 
+    bool alarm = false; //indecates the robot lost the line
+    bool intersect = false; //indecates the robot is on an intersection
+    bool lastturn = false; //to turn on an intersection
+
+    //calibrate the sensors
     string regel;
     cout << "Zet de robot met de sensor exact op de zwarte lijn en voer a in gevolgd door enter " << endl;
     cin >> regel;
@@ -79,10 +90,12 @@ int main() {
     cout << "left_min = " << left_min << endl;
     cout << "Plaat de robot op de lijn en voer a in gevolgd door enter" << endl;
     cin >> regel;
+
     while(true){
-        if(bp.get_sensor(PORT_2, ultrasonic) == 0){
+        if(bp.get_sensor(PORT_2, ultrasonic) == 0){ //check if the ultrasonic sensor works correctly
             int distanceCm = ultrasonic.cm;
-            if(distanceCm <= 5){
+            if(distanceCm <= 5){ //check if there is an object in front of the robot
+                //go around the object
                 bp.set_motor_power(PORT_A, 55);
                 bp.set_motor_power(PORT_B, -55);
                 sleep(1);
@@ -109,10 +122,13 @@ int main() {
             }
         }
 
+        //check if the color and light sensors work correctly
         if (bp.get_sensor(PORT_1, color) == 0 && bp.get_sensor(PORT_3, light) == 0){
+            //calculating light values
             leftval = measure_light(light.reflected, left_min, left_max);
             rightval = measure_color(color.reflected_red, right_min, right_max);
 
+            //checks if the last seen line was left or right
             if (leftval - rightval > 10){
                 left = true;
                 right = false;
@@ -123,33 +139,38 @@ int main() {
                 alarm = false;
             }
 
-            if (leftval <= 0 && rightval <= 0) {
+            if (leftval <= 0 && rightval <= 0) { //if the robot lost the line, up zerocount by one
                 zerocount++;
 
+                //if the counter reaches 10, the robot has lost the line
                 if (zerocount >= 10) {
                     alarm = true;
+                    //prints status to monitor the robot
                     cout << "ALARM" << endl;
                     cout << right << ", " << left << endl;
                 }
-            }else{
+            }else{ //if the robot finds the line the counter resets to 0
                 zerocount = 0;
             }
 
+            //if both sensors output a value higher than 57, the robot is on an intersection
             if (leftval >= 57 && rightval >= 57) {
                 intersect = true;
             }
 
             if (intersect) {
-                cout << "intersect" << lastturn << endl;
+                cout << "intersect" << lastturn << endl; //prints status to monitor the robot
 
                 bp.set_motor_power(PORT_A, 20);
                 bp.set_motor_power(PORT_B, 20);
                 sleep(1);
-                if (rand() % 2) {
+                if (rand() % 2) { //the rabot chooses at random if it will go to the left or the right
+                    //random number is 1, go to the right
                     bp.set_motor_power(PORT_A, -40);
                     bp.set_motor_power(PORT_B, 40);
                     lastturn = false;
                 }else{
+                    //random number is 0, go to the left
                     bp.set_motor_power(PORT_A, 40);
                     bp.set_motor_power(PORT_B, -40);
                     lastturn = true;
@@ -171,10 +192,11 @@ int main() {
                 bpower = power - (leftval);
             }
 
+            //turn the motor on with the specified power
             bp.set_motor_power(PORT_A, apower);
             bp.set_motor_power(PORT_B, bpower);
 
-
+            //prints status to monitor the robot
             cout << leftval << ", " << rightval << endl;
             cout << "power: " << static_cast<int16_t>(apower) << ", " << static_cast<int16_t>(bpower) << endl;
         }
