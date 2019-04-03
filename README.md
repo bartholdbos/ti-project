@@ -1,3 +1,3 @@
 # ti-project
 
-Brickpi.cpp & Brickpi.h worden gebruikt om de BrickPi gemakkelijk aan te sturen
+BrickPi3.cpp & BrickPi3.h worden gebruikt om de BrickPi gemakkelijk aan te sturen
