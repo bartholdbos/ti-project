@@ -4,6 +4,9 @@
 #include <iomanip>
 #include <signal.h>
 #include <cstdlib>
+#include <fstream>
+#include <sstream>
+#include <string>
 using namespace std;
 
 BrickPi3 bp;
@@ -21,6 +24,13 @@ int32_t ultrasoon_left = 0;
 int32_t ultrasoon_right = 0;
 int32_t ultrasoon_straight = 0;
 
+//struct for values of the ultrasoon sensor.
+struct Config {
+    int32_t straight = 0;
+    int32_t left = 0;
+    int32_t right = 0;
+};
+
 //Left turn fucntion for the robot
 void left_turn(){
     bp.set_motor_dps(right_motor, -360);
@@ -36,8 +46,8 @@ void right_turn(){
 }
 
 //Looking left with the ultrasoon function
-int look_left(){
-    bp.set_motor_position(PORT_D, ultrasoon_left);
+int look_left(Config& config){
+    bp.set_motor_position(PORT_D, config.left);
     usleep(500000);
     int distance = ultrasonic.cm;
     usleep(500000);
@@ -45,13 +55,38 @@ int look_left(){
 }
 
 //Looking right with the ultrasoon function
-int look_right(){
-    bp.set_motor_position(PORT_D, ultrasoon_right);
+int look_right(Config& config){
+    bp.set_motor_position(PORT_D, config.right);
     usleep(500000);
     int distance = ultrasonic.cm;
     usleep(500000);
     return distance;
 }
+
+//write to the config file
+void writeConfig(Config& config){
+    ofstream fout;
+    fout.open("config.txt");
+    fout << "straight = " << config.straight << "\n";
+    fout << "left = " << config.left << "\n";
+    fout << "right = " << config.right;
+}
+
+//load the config file
+void loadConfig(Config& config){
+    ifstream fin("config.txt");
+    string line;
+    while (getline(fin, line)){
+        istringstream sin(line.substr(line.find("=") + 1));
+        if (line.find("straight") != -1)
+            sin >> config.straight;
+        else if (line.find("left") != -1)
+            sin >> config.left;
+        else if (line.find("right") != -1)
+            sin >> config.right;
+    }
+}
+
 
 
 int main() {
@@ -71,25 +106,39 @@ int main() {
     //Set sensors
     bp.set_sensor_type(PORT_1, SENSOR_TYPE_NXT_ULTRASONIC);
 
-    //calibration ultrasoon
-    string regel;
-    cout << "############ Calibration Ultrasoon ############" << endl << "Put the ultrasoon straight and hit enter: " << endl;
-    cin >> regel;
-    ultrasoon_straight = bp.get_motor_encoder(PORT_D);
-    cout << "Straight = " << static_cast<int32_t>(ultrasoon_straight) << endl;
-    cout << "Put the ultrasoon left and hit enter: " << endl;
-    cin >> regel;
-    ultrasoon_left = bp.get_motor_encoder(PORT_D);
-    cout << "Left = " << static_cast<int32_t>(ultrasoon_left) << endl;
-    cout << "Put the ultrasoon right and hit enter: " << endl;
-    cin >> regel;
-    ultrasoon_right = bp.get_motor_encoder(PORT_D);
-    cout << "Right = " << static_cast<int32_t>(ultrasoon_right) << endl;
-    cout << "############## Calibration  Done ##############" << endl;
-    bp.set_motor_position(PORT_D, ultrasoon_straight);
+    Config config;
 
+    //calibration ultrasoon(y/n)
+    string answer;
+    cout << "Do you want to calibrate the ultrasoon sensor(recomended at first start)?(Y/n)" << endl;
+    cin >> answer;
+    if (answer == "yes" || answer == "y" || answer == "Y") {
+        string regel;
+        cout << "############ Calibration Ultrasoon ############" << endl << "Put the ultrasoon straight and hit enter: " << endl;
+        cin >> regel;
+        config.straight = bp.get_motor_encoder(PORT_D);
+        cout << "Straight = " << static_cast<int32_t>(config.straight) << endl;
+        cout << "Put the ultrasoon left and hit enter: " << endl;
+        cin >> regel;
+        config.left = bp.get_motor_encoder(PORT_D);
+        cout << "Left = " << static_cast<int32_t>(config.left) << endl;
+        cout << "Put the ultrasoon right and hit enter: " << endl;
+        cin >> regel;
+        config.right = bp.get_motor_encoder(PORT_D);
+        cout << "Right = " << static_cast<int32_t>(config.right) << endl;
+        sleep(1);
+        bp.set_motor_position(PORT_D, config.straight);
+        cout << "Writing to file........ " << endl;
+        writeConfig(config);
+        cout << "############## Calibration  Done ##############" << endl;
 
-
+    }else{
+        loadConfig(config);
+        cout << static_cast<int32_t>(config.straight) << '\n';
+        cout << static_cast<int32_t>(config.left) << '\n';
+        cout << static_cast<int32_t>(config.right) << '\n';
+    }
+    //Start driving with the controller
     while (true) {
         //Check the controller for inputs
         update();
@@ -116,11 +165,10 @@ int main() {
                     if(distanceCm <= 20){
                         bp.set_motor_power(right_motor, 0);
                         bp.set_motor_power(left_motor, 0);
-                        sleep(2);
-                        int distance_left= look_left();
-                        int distance_right = look_right();
+                        int distance_left= look_left(config);
+                        int distance_right = look_right(config);
                         cout << "left: " << distance_left << endl << "right: " << distance_right << endl;
-                        bp.set_motor_position(PORT_D, ultrasoon_straight);
+                        bp.set_motor_position(PORT_D, config.straight);
                         if(distance_left > distance_right){
                             left_turn();
                         }else{
@@ -132,25 +180,6 @@ int main() {
                 bp.set_motor_power(left_motor, 50);
             }
         }
-
-
-//        if(butA == 1){
-//            bp.set_motor_position(PORT_D, left);
-//        }
-//        if(butB == 1){
-//            bp.set_motor_position(PORT_D, straight);
-//        }
-//        if(butY == 1){
-//            bp.set_motor_position(PORT_D, right);
-//        }
-
-
-
-//        printf("int: %d    ", l2);
-//        printf("\r");
-//        fflush(stdout);
-//        usleep(100000);
-
         bp.set_motor_power(right_motor, l2);
         bp.set_motor_power(left_motor, r2);
     }

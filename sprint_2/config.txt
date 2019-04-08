@@ -1,0 +1,3 @@
+straight = 10
+left = 5
+right = 6
