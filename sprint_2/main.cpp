@@ -7,6 +7,13 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+
+//includes voor stream
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <thread>
+#include <unistd.h>
 using namespace std;
 
 BrickPi3 bp;
@@ -14,9 +21,10 @@ BrickPi3 bp;
 void exit_signal_handler(int signo);
 
 sensor_ultrasonic_t ultrasonic;
+sensor_touch_t touch;
 
 //Motor variables easier to use
-uint8_t left_motor = PORT_C;
+uint8_t left_motor = PORT_B;
 uint8_t right_motor = PORT_A;
 
 //ultraasoon position value's
@@ -87,7 +95,30 @@ void loadConfig(Config& config){
     }
 }
 
+void writestats(int speed, float voltage, int l2, int r2, bool autonoom){
+    ofstream fout;
+    fout.open("stats.txt");
+    fout << "battery = " << voltage << "\n";
+    fout << "left motor power = " << l2 << "\n";
+    fout << "right motor power = " << r2 << "\n";
+    if(speed == 35){
+        fout << "mode = low"<< "\n";
+    }else{
+        fout << "mode = high"<< "\n";
+    }
+    if(autonoom == 1) {
+        fout << "autonoom = " << "on" << "\n";
+    }else{
+        fout << "autonoom = " << "off" << "\n";
+    }
+}
 
+void start_stream(){
+    char command[50];
+
+    strcpy( command, "./stream.sh");
+    system(command);
+}
 
 int main() {
     //Detecting the controller
@@ -105,6 +136,7 @@ int main() {
 
     //Set sensors
     bp.set_sensor_type(PORT_1, SENSOR_TYPE_NXT_ULTRASONIC);
+    bp.set_sensor_type(PORT_3, SENSOR_TYPE_TOUCH_NXT);
 
     Config config;
 
@@ -138,30 +170,64 @@ int main() {
         cout << static_cast<int32_t>(config.left) << '\n';
         cout << static_cast<int32_t>(config.right) << '\n';
     }
+
+//    thread t1 (start_stream);
+
+    bool autonoom = 0;
+    float speed = 100;
     //Start driving with the controller
     while (true) {
         //Check the controller for inputs
         update();
-        int l2 = int(float(getAxis(AXIS_L3Y) * -1) / 32767.0 * 100.0);
-        int r2 = int(float(getAxis(AXIS_R3Y) * -1) / 32767.0 * 100.0);
+        int l2 = int(float(getAxis(AXIS_L3Y) * -1) / 32767.0 * speed);
+        int r2 = int(float(getAxis(AXIS_R3Y) * -1) / 32767.0 * speed);
+        int UD = int(float(getAxis(AXIS_UD) * -1));
+        int LR = int(float(getAxis(AXIS_LR) * -1));
         int butA = getButton(BUTTON_A);
-        int butY = getButton(BUTTON_Y);
         int butB = getButton(BUTTON_B);
+        int butX = getButton(BUTTON_X);
+        int butY = getButton(BUTTON_Y);
         int lr = getAxis(AXIS_L2);
-        int voltBattery = bp.get_voltage_battery();
+        float voltBattery = bp.get_voltage_battery();
+        float volt9 = bp.get_voltage_9v();
         int32_t position = bp.get_motor_encoder(PORT_D);
+
+
+
+        //low and high power mode
+        if(butY == 1){
+            speed = 35;
+        }
+        if(butX == 1){
+            speed = 100;
+        }
+
+        writestats(speed, voltBattery, l2, r2, autonoom);
+
         //Start for autonoom driving
         if(butA == 1){
             while(true){
+                autonoom = 1;
                 update();
+                int l2 = 50;
+                int r2 = 50;
+                float voltBattery = bp.get_voltage_battery();
                 int butB = getButton(BUTTON_B);
                 if(butB == 1){
+                    autonoom = 0;
                     break;
                 }
                 if(bp.get_sensor(PORT_1, ultrasonic) == 0) { //check if the ultrasonic sensor works correctly
                     cout << "sensor working" << endl;
                     int distanceCm = ultrasonic.cm;
                     cout << "Afstand: " << distanceCm << "cm" << endl;
+                    if(bp.get_sensor(PORT_3, touch) == 0) {
+                        bool pressed = touch.pressed;
+                        if(pressed == 1){
+                            cout<<"noodstop"<<endl;
+                            break;
+                        }
+                    }
                     if(distanceCm <= 20){
                         bp.set_motor_power(right_motor, 0);
                         bp.set_motor_power(left_motor, 0);
@@ -169,17 +235,44 @@ int main() {
                         int distance_right = look_right(config);
                         cout << "left: " << distance_left << endl << "right: " << distance_right << endl;
                         bp.set_motor_position(PORT_D, config.straight);
+                        usleep(100000);
+                        bp.set_motor_power(PORT_D, 0);
                         if(distance_left > distance_right){
+                            cout<<"----left turn"<<endl;
                             left_turn();
                         }else{
+                            cout<<"----right turn"<<endl;
                             right_turn();
                         }
                     }
                 }
-                bp.set_motor_power(right_motor, 50);
-                bp.set_motor_power(left_motor, 50);
+                bp.set_motor_power(right_motor, r2);
+                bp.set_motor_power(left_motor, l2);
+                writestats(speed, voltBattery, l2, r2, autonoom);
             }
         }
+
+        if(UD == 32767){
+            bp.set_motor_position(PORT_D, config.straight);
+        }while(LR == 32767){//links
+                update();
+                LR = int(float(getAxis(AXIS_LR) * -1));
+                int32_t current_position = bp.get_motor_encoder(PORT_D);
+                if(current_position <= config.left){
+                    break;
+                }
+                bp.set_motor_position(PORT_D,(current_position -5));
+            }
+        while(LR == -32767){//rechts
+            update();
+            LR = int(float(getAxis(AXIS_LR) * -1));
+            int32_t current_position = bp.get_motor_encoder(PORT_D);
+            if(current_position >= config.right){
+                break;
+            }
+            bp.set_motor_position(PORT_D,(current_position +5));
+        }
+
         bp.set_motor_power(right_motor, l2);
         bp.set_motor_power(left_motor, r2);
     }
